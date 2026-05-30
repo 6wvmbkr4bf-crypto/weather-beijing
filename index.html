@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>北京天气 · Beijing Weather</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Noto+Serif+SC:wght@300;400;600;700;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  /* =============================================
+     RESET
+     ============================================= */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* =============================================
+     CSS VARIABLES
+     ============================================= */
+  :root {
+    --ink-deepest: #0d0a07;
+    --ink-black: #1a1410;
+    --ink-dark: #2c2218;
+    --ink-mid: #5c4430;
+    --ink-light: #8b7355;
+    --rice-paper: #f7f2e8;
+    --rice-paper-warm: #f2ece0;
+    --rice-dark: #e0d8c8;
+    --rice-darker: #c8bfa8;
+    --vermillion: #c41e3a;
+    --vermillion-glow: #e8394a;
+    --vermillion-deep: #8b1224;
+    --gold: #b8a070;
+    --gold-light: #d4c5a0;
+    --gold-pale: #e8dcc8;
+    --jade: #5b8c7a;
+    --jade-dark: #3a5c4f;
+    --celadon: #b5c9bf;
+
+    --font-display: 'Cinzel', 'Noto Serif SC', serif;
+    --font-chinese: 'Noto Serif SC', serif;
+    --font-mono: 'DM Mono', monospace;
+
+    --ease-ink: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-brush: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  /* Weather-based theme overrides (default: clear) */
+  :root {
+    --ink-blob-1-opacity: 0.08;
+    --ink-blob-2-opacity: 0.05;
+    --ink-blob-3-opacity: 0.04;
+    --bg-tint: rgba(210, 180, 140, 0.06);
+  }
+
+  body.weather-rain {
+    --ink-blob-1-opacity: 0.16;
+    --ink-blob-2-opacity: 0.10;
+    --ink-blob-3-opacity: 0.07;
+    --bg-tint: rgba(140, 160, 180, 0.10);
+  }
+
+  body.weather-snow {
+    --ink-blob-1-opacity: 0.06;
+    --ink-blob-2-opacity: 0.03;
+    --ink-blob-3-opacity: 0.02;
+    --bg-tint: rgba(200, 210, 220, 0.04);
+  }
+
+  body.weather-fog {
+    --ink-blob-1-opacity: 0.12;
+    --ink-blob-2-opacity: 0.08;
+    --ink-blob-3-opacity: 0.06;
+    --bg-tint: rgba(180, 175, 165, 0.12);
+  }
+
+  body.weather-thunderstorm {
+    --ink-blob-1-opacity: 0.20;
+    --ink-blob-2-opacity: 0.14;
+    --ink-blob-3-opacity: 0.09;
+    --bg-tint: rgba(80, 70, 90, 0.14);
+  }
+
+  /* =============================================
+     BASE
+     ============================================= */
+  html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+  body {
+    font-family: var(--font-chinese);
+    background-color: var(--rice-paper);
+    color: var(--ink-black);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* =============================================
+     GRAIN OVERLAY (SVG noise filter)
+     ============================================= */
+  .grain-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  /* =============================================
+     INK WASH BACKGROUND
+     ============================================= */
+  .ink-wash-bg {
+    position: fixed;
+    inset: -20%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.7;
+  }
+
+  .ink-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    animation: inkDrift 30s ease-in-out infinite;
+  }
+
+  .ink-blob--1 {
+    width: 60vw;
+    height: 60vw;
+    background: radial-gradient(ellipse at 40% 50%, rgba(90, 70, 50, var(--ink-blob-1-opacity)), transparent 70%);
+    top: -15%;
+    left: -10%;
+    animation-delay: 0s;
+  }
+
+  .ink-blob--2 {
+    width: 50vw;
+    height: 50vw;
+    background: radial-gradient(ellipse at 60% 40%, rgba(60, 80, 90, var(--ink-blob-2-opacity)), transparent 70%);
+    bottom: -10%;
+    right: -5%;
+    animation-delay: -10s;
+    animation-duration: 35s;
+  }
+
+  .ink-blob--3 {
+    width: 40vw;
+    height: 40vw;
+    background: radial-gradient(ellipse at 50% 50%, rgba(160, 140, 100, var(--ink-blob-3-opacity)), transparent 70%);
+    top: 40%;
+    left: 40%;
+    animation-delay: -20s;
+    animation-duration: 40s;
+  }
+
+  @keyframes inkDrift {
+    0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+    25% { transform: translate(3%, -2%) rotate(1deg) scale(1.05); }
+    50% { transform: translate(-2%, 3%) rotate(-1deg) scale(0.95); }
+    75% { transform: translate(-3%, -1%) rotate(0.5deg) scale(1.02); }
+  }
+
+  /* =============================================
+     MAIN CONTAINER
+     ============================================= */
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 760px;
+    padding: 3rem 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+
+  /* =============================================
+     HEADER
+     ============================================= */
+  .header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--ink-black);
+    position: relative;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--vermillion);
+    transform: scaleX(0.18);
+    transform-origin: left;
+    animation: headerLineReveal 1.2s var(--ease-ink) 0.3s forwards;
+    opacity: 0;
+  }
+
+  @keyframes headerLineReveal {
+    from { opacity: 0; transform: scaleX(0.18); }
+    to { opacity: 1; transform: scaleX(0.18); }
+  }
+
+  .location-tag {
+    font-family: var(--font-chinese);
+    font-size: 1.75rem;
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    color: var(--ink-black);
+    animation: inkReveal 0.8s var(--ease-ink) 0.2s both;
+  }
+
+  .location-sub {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: 0.25em;
+    color: var(--ink-mid);
+    animation: inkReveal 0.8s var(--ease-ink) 0.35s both;
+  }
+
+  /* =============================================
+     HERO SECTION — Temperature + Weather
+     ============================================= */
+  .hero {
+    display: flex;
+    align-items: flex-end;
+    gap: 2rem;
+    position: relative;
+  }
+
+  .weather-icon-container {
+    flex-shrink: 0;
+    animation: inkReveal 1s var(--ease-ink) 0.5s both;
+  }
+
+  .weather-icon-svg {
+    width: 80px;
+    height: 80px;
+    opacity: 0.9;
+  }
+
+  .temp-block {
+    display: flex;
+    align-items: flex-start;
+    animation: inkReveal 0.9s var(--ease-ink) 0.55s both;
+  }
+
+  .temp-value {
+    font-family: var(--font-display);
+    font-size: clamp(8rem, 18vw, 14rem);
+    font-weight: 900;
+    line-height: 0.8;
+    color: var(--ink-black);
+    letter-spacing: -0.03em;
+    position: relative;
+    display: inline-block;
+  }
+
+  .temp-value::after {
+    content: '';
+    position: absolute;
+    bottom: -0.05em;
+    left: 0;
+    width: 100%;
+    height: 0.015em;
+    background: var(--ink-black);
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: brushStroke 1.5s var(--ease-brush) 1.2s forwards;
+  }
+
+  @keyframes brushStroke {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+
+  .temp-unit {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4.5vw, 3.5rem);
+    font-weight: 400;
+    color: var(--ink-mid);
+    margin-top: 0.3em;
+    margin-left: 0.1em;
+    letter-spacing: -0.02em;
+  }
+
+  .condition-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-bottom: 0.8rem;
+    animation: inkReveal 0.8s var(--ease-ink) 0.7s both;
+  }
+
+  .condition-cn {
+    font-family: var(--font-chinese);
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: var(--ink-black);
+    letter-spacing: 0.12em;
+    line-height: 1;
+  }
+
+  .condition-en {
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--ink-mid);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  /* =============================================
+     DATA GRID — Brutalist Meteorological Data
+     ============================================= */
+  .data-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--ink-black);
+    border: 1px solid var(--ink-black);
+    animation: inkReveal 0.9s var(--ease-ink) 0.85s both;
+  }
+
+  .data-item {
+    background: var(--rice-paper);
+    padding: 1.5rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    position: relative;
+    transition: background 0.4s ease;
+  }
+
+  .data-item:hover {
+    background: var(--rice-paper-warm);
+  }
+
+  .data-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--vermillion);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.5s var(--ease-ink);
+  }
+
+  .data-item:hover::before {
+    transform: scaleX(1);
+  }
+
+  .data-label {
+    font-family: var(--font-chinese);
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: var(--ink-mid);
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .data-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--rice-darker);
+  }
+
+  .data-value {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--ink-black);
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+
+  .data-value small {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--ink-light);
+    font-family: var(--font-chinese);
+    margin-left: 0.2em;
+  }
+
+  /* =============================================
+     FOOTER
+     ============================================= */
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.5rem;
+    animation: inkReveal 0.8s var(--ease-ink) 1s both;
+  }
+
+  .update-time {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--ink-light);
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .update-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--vermillion);
+    animation: dotPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes dotPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.7); }
+  }
+
+  /* =============================================
+     CHOP MARK (印章)
+     ============================================= */
+  .chop-mark {
+    width: 52px;
+    height: 52px;
+    border: 2.5px solid var(--vermillion);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-chinese);
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--vermillion);
+    letter-spacing: 0.1em;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    position: relative;
+    cursor: default;
+    transition: all 0.4s var(--ease-ink);
+    rotate: 3deg;
+  }
+
+  .chop-mark:hover {
+    background: var(--vermillion);
+    color: var(--rice-paper);
+    rotate: 0deg;
+    box-shadow: 0 0 20px rgba(196, 30, 58, 0.25);
+  }
+
+  .chop-mark::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid var(--vermillion);
+    opacity: 0.5;
+    transition: opacity 0.4s;
+  }
+
+  .chop-mark:hover::after {
+    opacity: 0;
+  }
+
+  /* =============================================
+     LOADING STATE
+     ============================================= */
+  .temp-value.loading {
+    animation: inkPulse 1.8s ease-in-out infinite;
+  }
+
+  @keyframes inkPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  @keyframes inkReveal {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+      filter: blur(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  }
+
+  /* =============================================
+     ERROR STATE
+     ============================================= */
+  .error-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--ink-mid);
+    font-family: var(--font-chinese);
+  }
+
+  .error-state .err-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+    color: var(--vermillion);
+  }
+
+  /* =============================================
+     WEATHER ICON CSS ART (ink-brush style)
+     ============================================= */
+  .icon-sun {
+    fill: none;
+    stroke: var(--ink-black);
+    stroke-width: 3;
+  }
+  .icon-sun-center {
+    fill: var(--vermillion-deep);
+  }
+  .icon-cloud {
+    fill: var(--ink-mid);
+    opacity: 0.6;
+  }
+  .icon-rain-drop {
+    fill: none;
+    stroke: var(--ink-dark);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
+  .icon-mist-line {
+    fill: none;
+    stroke: var(--ink-light);
+    stroke-width: 2;
+    stroke-linecap: round;
+    opacity: 0.6;
+  }
+  .icon-snow-dot {
+    fill: var(--ink-light);
+    opacity: 0.7;
+  }
+  .icon-lightning {
+    fill: none;
+    stroke: var(--vermillion);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* =============================================
+     RESPONSIVE
+     ============================================= */
+  @media (max-width: 640px) {
+    .container {
+      padding: 2rem 1.25rem;
+      gap: 1.75rem;
+    }
+
+    .hero {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .weather-icon-svg {
+      width: 50px;
+      height: 50px;
+    }
+
+    .temp-value {
+      font-size: clamp(5rem, 28vw, 10rem);
+    }
+
+    .condition-cn {
+      font-size: 1.5rem;
+    }
+
+    .data-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .header {
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .location-tag {
+      font-size: 1.35rem;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .container {
+      padding: 1.25rem 1rem;
+      gap: 1.25rem;
+    }
+
+    .data-item {
+      padding: 1rem 1.25rem;
+    }
+
+    .data-value {
+      font-size: 1.5rem;
+    }
+
+    .footer {
+      flex-direction: column;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- Grain texture overlay -->
+<div class="grain-overlay" aria-hidden="true"></div>
+
+<!-- Ink wash atmospheric blobs -->
+<div class="ink-wash-bg" aria-hidden="true">
+  <div class="ink-blob ink-blob--1"></div>
+  <div class="ink-blob ink-blob--2"></div>
+  <div class="ink-blob ink-blob--3"></div>
+</div>
+
+<!-- Main content -->
+<main class="container">
+  <!-- Header -->
+  <header class="header">
+    <span class="location-tag">北京</span>
+    <span class="location-sub">Beijing · 39.9°N 116.4°E</span>
+  </header>
+
+  <!-- Hero: Icon + Temperature + Condition -->
+  <section class="hero">
+    <div class="weather-icon-container" id="weatherIcon">
+      <!-- SVG inserted by JS -->
+    </div>
+    <div class="temp-block">
+      <span class="temp-value loading" id="tempValue">--</span>
+      <span class="temp-unit">°C</span>
+    </div>
+    <div class="condition-block">
+      <span class="condition-cn" id="conditionCN">—</span>
+      <span class="condition-en" id="conditionEN">—</span>
+    </div>
+  </section>
+
+  <!-- Data Grid -->
+  <section class="data-grid">
+    <div class="data-item">
+      <span class="data-label">体感温度</span>
+      <span class="data-value" id="feelsLike">—<small>°C</small></span>
+    </div>
+    <div class="data-item">
+      <span class="data-label">相对湿度</span>
+      <span class="data-value" id="humidity">—<small>%</small></span>
+    </div>
+    <div class="data-item">
+      <span class="data-label">风速</span>
+      <span class="data-value" id="windSpeed">—<small>km/h</small></span>
+    </div>
+    <div class="data-item">
+      <span class="data-label">风向</span>
+      <span class="data-value" id="windDir">—</span>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <span class="update-time">
+      <span class="update-dot"></span>
+      数据更新于 <time id="updateTime">—</time>
+    </span>
+    <div class="chop-mark" title="天气">天气</div>
+  </footer>
+</main>
+
+<script>
+// ============================================
+// WEATHER API INTEGRATION
+// ============================================
+
+const API_URL = 'https://api.open-meteo.com/v1/forecast?latitude=39.9042&longitude=116.4074&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,is_day&timezone=Asia%2FShanghai';
+
+// WMO Weather Code → { Chinese, English, icon type, body class }
+const WEATHER_MAP = {
+  0:  { cn: '晴',     en: 'Clear Sky',        icon: 'sun',        cls: '' },
+  1:  { cn: '少云',   en: 'Mostly Clear',      icon: 'sun-cloud',  cls: '' },
+  2:  { cn: '多云',   en: 'Partly Cloudy',     icon: 'cloud',      cls: '' },
+  3:  { cn: '阴',     en: 'Overcast',          icon: 'cloud-heavy',cls: '' },
+  45: { cn: '雾',     en: 'Fog',               icon: 'mist',       cls: 'weather-fog' },
+  48: { cn: '雾凇',   en: 'Rime Fog',          icon: 'mist',       cls: 'weather-fog' },
+  51: { cn: '毛毛雨', en: 'Light Drizzle',     icon: 'rain-light', cls: 'weather-rain' },
+  53: { cn: '毛毛雨', en: 'Moderate Drizzle',  icon: 'rain-light', cls: 'weather-rain' },
+  55: { cn: '毛毛雨', en: 'Heavy Drizzle',     icon: 'rain',       cls: 'weather-rain' },
+  61: { cn: '小雨',   en: 'Light Rain',        icon: 'rain-light', cls: 'weather-rain' },
+  63: { cn: '雨',     en: 'Moderate Rain',     icon: 'rain',       cls: 'weather-rain' },
+  65: { cn: '大雨',   en: 'Heavy Rain',        icon: 'rain-heavy', cls: 'weather-rain' },
+  71: { cn: '小雪',   en: 'Light Snow',        icon: 'snow-light', cls: 'weather-snow' },
+  73: { cn: '雪',     en: 'Moderate Snow',     icon: 'snow',       cls: 'weather-snow' },
+  75: { cn: '大雪',   en: 'Heavy Snow',        icon: 'snow-heavy', cls: 'weather-snow' },
+  77: { cn: '雪粒',   en: 'Snow Grains',       icon: 'snow',       cls: 'weather-snow' },
+  80: { cn: '阵雨',   en: 'Rain Showers',      icon: 'rain',       cls: 'weather-rain' },
+  81: { cn: '阵雨',   en: 'Moderate Showers',  icon: 'rain-heavy', cls: 'weather-rain' },
+  82: { cn: '暴雨',   en: 'Violent Showers',   icon: 'rain-heavy', cls: 'weather-rain' },
+  85: { cn: '阵雪',   en: 'Snow Showers',      icon: 'snow',       cls: 'weather-snow' },
+  86: { cn: '阵雪',   en: 'Heavy Snow Showers',icon: 'snow-heavy', cls: 'weather-snow' },
+  95: { cn: '雷暴',   en: 'Thunderstorm',      icon: 'thunder',    cls: 'weather-thunderstorm' },
+  96: { cn: '雷暴',   en: 'Thunderstorm w/ Hail',icon: 'thunder',  cls: 'weather-thunderstorm' },
+  99: { cn: '强雷暴', en: 'Severe Thunderstorm',icon: 'thunder',   cls: 'weather-thunderstorm' },
+};
+
+function getWeatherInfo(code) {
+  return WEATHER_MAP[code] || { cn: '—', en: 'Unknown', icon: 'cloud', cls: '' };
+}
+
+// Wind direction: degrees → Chinese
+function windDirCN(deg) {
+  const dirs = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+  const index = Math.round(((deg + 360) % 360) / 45) % 8;
+  return dirs[index];
+}
+
+// ============================================
+// SVG WEATHER ICONS (ink-brush minimal style)
+// ============================================
+function renderWeatherIcon(iconType) {
+  const container = document.getElementById('weatherIcon');
+
+  const icons = {
+    'sun': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="40" cy="40" r="18" class="icon-sun"/>
+      <g stroke="var(--ink-black)" stroke-width="3" stroke-linecap="round" opacity="0.5">
+        <line x1="40" y1="8" x2="40" y2="18"/><line x1="40" y1="62" x2="40" y2="72"/>
+        <line x1="8" y1="40" x2="18" y2="40"/><line x1="62" y1="40" x2="72" y2="40"/>
+        <line x1="17" y1="17" x2="24" y2="24"/><line x1="56" y1="56" x2="63" y2="63"/>
+        <line x1="63" y1="17" x2="56" y2="24"/><line x1="24" y1="56" x2="17" y2="63"/>
+      </g>
+      <circle cx="40" cy="40" r="6" fill="var(--vermillion)" opacity="0.8"/>
+    </svg>`,
+
+    'sun-cloud': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="28" cy="26" r="14" fill="none" stroke="var(--ink-black)" stroke-width="3"/>
+      <g stroke="var(--ink-black)" stroke-width="2.5" stroke-linecap="round" opacity="0.5">
+        <line x1="28" y1="4" x2="28" y2="11"/><line x1="28" y1="41" x2="28" y2="48"/>
+        <line x1="2" y1="26" x2="9" y2="26"/><line x1="47" y1="26" x2="54" y2="26"/>
+      </g>
+      <circle cx="28" cy="26" r="5" fill="var(--vermillion)" opacity="0.7"/>
+      <path d="M30 56 Q38 38 62 44 Q68 54 58 62 L30 62 Q24 62 24 56 Z" fill="var(--ink-mid)" opacity="0.5" stroke="var(--ink-dark)" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M28 60 Q34 44 56 50 Q62 58 56 64 L28 64 Q22 64 22 60 Z" fill="var(--rice-paper-warm)" stroke="var(--ink-dark)" stroke-width="2.5" stroke-linejoin="round"/>
+    </svg>`,
+
+    'cloud': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18 52 Q18 38 34 38 Q38 22 56 30 Q66 20 72 36 Q80 42 70 56 L20 56 Q12 56 12 48 Z" fill="var(--ink-mid)" opacity="0.35" stroke="var(--ink-dark)" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M22 56 Q22 42 36 42 Q40 28 56 34 Q64 26 70 40 Q76 44 68 56 L24 56 Q18 56 18 50 Z" fill="none" stroke="var(--ink-black)" stroke-width="3" stroke-linejoin="round"/>
+    </svg>`,
+
+    'cloud-heavy': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 52 Q16 38 32 38 Q36 20 56 28 Q68 16 74 36 Q82 44 70 58 L18 58 Q10 58 10 48 Z" fill="var(--ink-dark)" opacity="0.25" stroke="var(--ink-black)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M22 56 Q22 42 38 42 Q42 26 58 34 Q70 28 74 46 Q78 52 68 60 L24 60 Q18 60 18 52 Z" fill="var(--ink-mid)" opacity="0.3" stroke="var(--ink-dark)" stroke-width="2.5" stroke-linejoin="round"/>
+    </svg>`,
+
+    'mist': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <line x1="16" y1="30" x2="64" y2="30" class="icon-mist-line"/><line x1="22" y1="40" x2="58" y2="40" class="icon-mist-line"/>
+      <line x1="12" y1="50" x2="68" y2="50" class="icon-mist-line"/><line x1="26" y1="60" x2="54" y2="60" class="icon-mist-line"/>
+      <circle cx="40" cy="28" r="4" fill="var(--ink-light)" opacity="0.3"/>
+    </svg>`,
+
+    'rain-light': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18 36 Q18 24 34 24 Q38 10 56 16 Q64 8 70 22 Q78 28 70 40 L20 40 Q12 40 12 32 Z" fill="var(--ink-mid)" opacity="0.35" stroke="var(--ink-dark)" stroke-width="2.5" stroke-linejoin="round"/>
+      <line x1="28" y1="46" x2="24" y2="58" class="icon-rain-drop"/><line x1="40" y1="44" x2="36" y2="56" class="icon-rain-drop"/>
+      <line x1="52" y1="42" x2="48" y2="54" class="icon-rain-drop"/>
+    </svg>`,
+
+    'rain': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 34 Q16 20 34 20 Q38 4 58 12 Q70 2 76 20 Q84 28 72 42 L18 42 Q10 42 10 32 Z" fill="var(--ink-dark)" opacity="0.3" stroke="var(--ink-black)" stroke-width="2.5" stroke-linejoin="round"/>
+      <line x1="20" y1="52" x2="15" y2="68" class="icon-rain-drop"/><line x1="32" y1="50" x2="27" y2="66" class="icon-rain-drop"/>
+      <line x1="44" y1="48" x2="39" y2="64" class="icon-rain-drop"/><line x1="56" y1="46" x2="51" y2="62" class="icon-rain-drop"/>
+      <line x1="68" y1="44" x2="63" y2="60" class="icon-rain-drop"/>
+    </svg>`,
+
+    'rain-heavy': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14 32 Q14 16 34 16 Q38 0 58 8 Q72 -2 78 18 Q86 26 72 40 L16 40 Q8 40 8 30 Z" fill="var(--ink-dark)" opacity="0.4" stroke="var(--ink-black)" stroke-width="3" stroke-linejoin="round"/>
+      <line x1="16" y1="50" x2="11" y2="70" class="icon-rain-drop" style="stroke:var(--ink-black);stroke-width:3"/>
+      <line x1="28" y1="48" x2="23" y2="68" class="icon-rain-drop" style="stroke:var(--ink-black);stroke-width:3"/>
+      <line x1="40" y1="46" x2="35" y2="66" class="icon-rain-drop" style="stroke:var(--ink-black);stroke-width:3"/>
+      <line x1="52" y1="44" x2="47" y2="64" class="icon-rain-drop" style="stroke:var(--ink-black);stroke-width:3"/>
+      <line x1="64" y1="42" x2="59" y2="62" class="icon-rain-drop" style="stroke:var(--ink-black);stroke-width:3"/>
+    </svg>`,
+
+    'snow-light': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 34 Q16 20 34 20 Q38 6 56 14 Q66 6 72 22 Q78 28 70 40 L18 40 Q10 40 10 32 Z" fill="var(--ink-mid)" opacity="0.25" stroke="var(--ink-dark)" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="24" cy="54" r="3" class="icon-snow-dot"/><circle cx="36" cy="60" r="2.5" class="icon-snow-dot"/>
+      <circle cx="50" cy="52" r="3.5" class="icon-snow-dot"/><circle cx="62" cy="58" r="2" class="icon-snow-dot"/>
+    </svg>`,
+
+    'snow': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14 32 Q14 16 34 16 Q38 0 58 8 Q72 0 78 18 Q84 26 72 38 L16 38 Q8 38 8 28 Z" fill="var(--ink-dark)" opacity="0.3" stroke="var(--ink-black)" stroke-width="2.5" stroke-linejoin="round"/>
+      <circle cx="20" cy="52" r="4"/><circle cx="34" cy="58" r="3.5"/><circle cx="48" cy="50" r="4.5"/>
+      <circle cx="60" cy="56" r="3"/><circle cx="28" cy="66" r="3"/><circle cx="54" cy="66" r="3.5"/>
+    </svg>`,
+
+    'snow-heavy': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 30 Q12 12 34 12 Q38 -4 58 4 Q74 -2 80 16 Q88 24 72 36 L14 36 Q6 36 6 26 Z" fill="var(--ink-dark)" opacity="0.4" stroke="var(--ink-black)" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="18" cy="50" r="4.5"/><circle cx="32" cy="56" r="4"/><circle cx="46" cy="48" r="5"/>
+      <circle cx="62" cy="54" r="4"/><circle cx="24" cy="66" r="3.5"/><circle cx="40" cy="68" r="4"/>
+      <circle cx="56" cy="66" r="3.5"/>
+    </svg>`,
+
+    'thunder': `<svg class="weather-icon-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14 30 Q14 14 34 14 Q38 -2 58 6 Q70 -2 76 16 Q84 24 72 36 L16 36 Q8 36 8 26 Z" fill="var(--ink-dark)" opacity="0.4" stroke="var(--ink-black)" stroke-width="2.5" stroke-linejoin="round"/>
+      <polygon points="44,40 34,58 40,58 32,74 56,52 48,52 54,40" fill="none" stroke="var(--vermillion)" stroke-width="2.5" stroke-linejoin="round"/>
+      <polygon points="44,42 36,56 42,56 36,68 52,52 46,52 50,42" fill="var(--vermillion)" opacity="0.3"/>
+    </svg>`,
+  };
+
+  container.innerHTML = icons[iconType] || icons['cloud'];
+}
+
+// ============================================
+// FETCH & RENDER
+// ============================================
+async function fetchWeather() {
+  const tempEl = document.getElementById('tempValue');
+  const condCN = document.getElementById('conditionCN');
+  const condEN = document.getElementById('conditionEN');
+  const feelsLike = document.getElementById('feelsLike');
+  const humidity = document.getElementById('humidity');
+  const windSpeed = document.getElementById('windSpeed');
+  const windDir = document.getElementById('windDir');
+  const updateTime = document.getElementById('updateTime');
+
+  try {
+    const response = await fetch(API_URL);
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+    const c = data.current;
+
+    const temp = Math.round(c.temperature_2m);
+    const info = getWeatherInfo(c.weather_code);
+
+    // Set weather-based body class
+    document.body.className = info.cls ? info.cls : '';
+
+    // Remove loading state
+    tempEl.classList.remove('loading');
+
+    // Render hero
+    tempEl.textContent = temp;
+    condCN.textContent = info.cn;
+    condEN.textContent = info.en;
+    renderWeatherIcon(info.icon);
+
+    // Render data grid
+    feelsLike.innerHTML = `${Math.round(c.apparent_temperature)}<small>°C</small>`;
+    humidity.innerHTML = `${c.relative_humidity}<small>%</small>`;
+    windSpeed.innerHTML = `${Math.round(c.wind_speed_10m)}<small>km/h</small>`;
+    windDir.textContent = windDirCN(c.wind_direction_10m);
+
+    // Render update time
+    const now = new Date();
+    updateTime.textContent = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+  } catch (err) {
+    console.error('Weather fetch failed:', err);
+    tempEl.classList.remove('loading');
+    tempEl.textContent = '—';
+    condCN.textContent = '无法获取';
+    condEN.textContent = 'Data Unavailable';
+    feelsLike.innerHTML = '—';
+    humidity.innerHTML = '—';
+    windSpeed.innerHTML = '—';
+    windDir.textContent = '—';
+    updateTime.textContent = '—';
+    renderWeatherIcon('cloud');
+  }
+}
+
+// ============================================
+// INIT
+// ============================================
+fetchWeather();
+</script>
+
+</body>
+</html>
